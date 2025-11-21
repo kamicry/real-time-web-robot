@@ -427,6 +427,54 @@ function init_app(){
         resetSessionButton.disabled = true;
     });
 
+    // 文本输入功能
+    const userInput = document.getElementById('userInput');
+    const sendButton = document.getElementById('sendButton');
+
+    async function sendTextMessage() {
+        const text = userInput.value.trim();
+        if (!text) return;
+
+        // 清空输入框
+        userInput.value = '';
+
+        // 显示用户消息
+        appendMessage(text, 'user');
+
+        // 如果没有启动会话，先启动
+        if (!isRecording) {
+            // 需要先建立会话
+            if (socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({
+                    action: 'start_session',
+                    input_type: 'text'
+                }));
+            }
+            // 等待会话启动完成
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+
+        // 发送文本消息到后端
+        if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({
+                action: 'stream_data',
+                input_type: 'text',
+                data: text
+            }));
+        }
+    }
+
+    // 发送按钮点击事件
+    sendButton.addEventListener('click', sendTextMessage);
+
+    // 回车发送
+    userInput.addEventListener('keypress', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            sendTextMessage();
+        }
+    });
+
     // 情感分析功能
     async function analyzeEmotion(text) {
         console.log('analyzeEmotion被调用，文本:', text);

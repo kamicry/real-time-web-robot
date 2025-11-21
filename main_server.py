@@ -386,7 +386,7 @@ async def websocket_endpoint(websocket: WebSocket, lanlan_name: str):
             if action == "start_session":
                 session_manager[lanlan_name].active_session_is_idle = False
                 input_type = message.get("input_type")
-                if input_type in ['audio', 'screen', 'camera']:
+                if input_type in ['audio', 'screen', 'camera', 'text']:
                     asyncio.create_task(session_manager[lanlan_name].start_session(websocket, message.get("new_session", False)))
                 else:
                     await session_manager[lanlan_name].send_status(f"Invalid input type: {input_type}")
