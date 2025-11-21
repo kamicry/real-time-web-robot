@@ -39,9 +39,9 @@ timeout /t 3 > nul
 
 echo 启动主服务器...
 
-REM 启动Main Server并打开浏览器
+REM 启动Main Server（不自动打开浏览器）
 REM /B 参数表示在后台启动，不创建新窗口
-start "" /B "%PYTHON%" "%SCRIPT_DIR%main_server.py" --open-browser --page index
+start "" /B "%PYTHON%" "%SCRIPT_DIR%main_server.py"
 
 REM 等待主服务器启动完成
 timeout /t 2 > nul
@@ -50,7 +50,7 @@ echo.
 echo ============================================================
 echo 服务已启动！
 echo.
-echo 浏览器应该会自动打开。如果没有，请访问：
+echo 请手动打开浏览器访问：
 echo http://127.0.0.1:8000
 echo.
 echo 要停止所有服务，请关闭此窗口或按 Ctrl+C

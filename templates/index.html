@@ -180,6 +180,17 @@
             font-size: 1rem;
             background: #fff;
             color: #222;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        #userInput:focus {
+            outline: none;
+            border-color: #4f8cff;
+            box-shadow: 0 0 0 2px rgba(79, 140, 255, 0.1);
+        }
+
+        #userInput::placeholder {
+            color: #999;
         }
 
         #sendButton {
@@ -191,6 +202,10 @@
             color: #fff;
             cursor: pointer;
             transition: background 0.2s;
+        }
+
+        #sendButton:hover:not(:disabled) {
+            background: #3b5cc8;
         }
 
         #sendButton:active {
@@ -424,7 +439,8 @@
     const focus_mode = {{ focus_mode | tojson }};
 </script>
 <script>
-    // Beacon功能 - 页面关闭时发送信号给服务器
+    // Beacon功能已禁用 - 服务持续运行模式
+    // 页面关闭后服务器继续运行，无需发送关闭信号
     let beaconSent = false;
 
     function sendBeacon() {
@@ -432,29 +448,15 @@
         beaconSent = true;
         
         try {
-            // 使用navigator.sendBeacon确保信号不被拦截
-            const success = navigator.sendBeacon('/api/beacon/shutdown', JSON.stringify({
+            // 持久化模式下只记录页面关闭事件，不关闭服务器
+            console.log('页面已关闭，但服务器继续运行（持久化模式）');
+            // 可选：发送一个通知信号（但不会导致服务器关闭）
+            navigator.sendBeacon('/api/beacon/page_closed', JSON.stringify({
                 timestamp: Date.now(),
-                action: 'shutdown'
-            }));
-            
-            if (success) {
-                console.log('Beacon信号已发送');
-            } else {
-                console.warn('Beacon发送失败，尝试使用fetch');
-                // 备用方案：使用fetch
-                fetch('/api/beacon/shutdown', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        timestamp: Date.now(),
-                        action: 'shutdown'
-                    }),
-                    keepalive: true // 确保请求在页面关闭时仍能发送
-                }).catch(err => console.log('备用beacon发送失败:', err));
-            }
+                action: 'page_closed'
+            })).catch(err => console.log('信号发送失败:', err));
         } catch (e) {
-            console.log('Beacon发送异常:', e);
+            console.log('信号发送异常:', e);
         }
     }
 

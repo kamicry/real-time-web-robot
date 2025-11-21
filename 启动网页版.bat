@@ -9,11 +9,12 @@ REM 启动Memory Server（后台进程）
 start "" /B "%~dp0env\python.exe" "%~dp0memory_server.py" --enable-shutdown
 timeout /t 3 > nul
 
-REM 启动Main Server并打开浏览器到主页面
-start "" /B "%~dp0env\python.exe" "%~dp0main_server.py" --open-browser --page index
+REM 启动Main Server（不自动打开浏览器）
+start "" /B "%~dp0env\python.exe" "%~dp0main_server.py"
 
 echo.
 echo 服务已启动，窗口将保持打开状态。
+echo 请手动打开浏览器访问: http://127.0.0.1:8000
 echo 关闭此窗口以停止所有服务。
 echo.
 pause

@@ -711,18 +711,25 @@ async def delete_catgirl(name: str):
 
 @app.post('/api/beacon/shutdown')
 async def beacon_shutdown():
-    """Beacon API for graceful server shutdown"""
+    """Beacon API for graceful server shutdown - DISABLED for persistent mode"""
     try:
         # 从 app.state 获取配置
         current_config = get_start_config()
-        # Only respond to beacon if server was started with --open-browser
-        if current_config['browser_mode_enabled']:
-            logger.info("收到beacon信号，准备关闭服务器...")
-            # Schedule server shutdown
-            asyncio.create_task(shutdown_server_async())
-            return {"success": True, "message": "服务器关闭信号已接收"}
+        # 禁用自动关闭 - 服务将持续运行直到手动停止
+        logger.info("收到beacon信号，但持久化模式下服务将继续运行")
+        return {"success": True, "message": "收到信号，服务持续运行中"}
     except Exception as e:
         logger.error(f"Beacon处理错误: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/beacon/page_closed")
+async def beacon_page_closed():
+    """处理页面关闭通知 - 服务继续运行"""
+    try:
+        logger.info("浏览器页面已关闭，但服务器保持运行中（持久化模式）")
+        return {"success": True, "message": "页面已关闭，服务继续运行"}
+    except Exception as e:
+        logger.error(f"页面关闭通知处理错误: {e}")
         return {"success": False, "error": str(e)}
 
 async def shutdown_server_async():
