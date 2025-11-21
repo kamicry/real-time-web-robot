@@ -23,6 +23,7 @@ function init_app(){
     let seqCounter = 0;
     let globalAnalyser = null;
     let lipSyncActive = false;
+    let textSessionActive = false; // 追踪文本会话是否已启动
 
     function isMobile() {
       return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
@@ -37,6 +38,8 @@ function init_app(){
 
         socket.onopen = () => {
             console.log('WebSocket连接已建立');
+            statusElement.textContent = '连接已建立，可以开始使用文字输入或语音输入';
+            textSessionActive = false; // 重置会话状态
         };
 
         socket.onmessage = (event) => {
@@ -140,12 +143,15 @@ function init_app(){
 
         socket.onclose = () => {
             console.log('WebSocket连接已关闭');
+            statusElement.textContent = 'WebSocket连接已断开，3秒后尝试重新连接...';
+            textSessionActive = false; // 重置会话状态
             // 尝试重新连接
             setTimeout(connectWebSocket, 3000);
         };
 
         socket.onerror = (error) => {
             console.error('WebSocket错误:', error);
+            statusElement.textContent = '连接服务器失败，请确保服务已启动。请检查 http://127.0.0.1:8000 是否可访问';
         };
     }
 
@@ -222,7 +228,13 @@ function init_app(){
             statusElement.textContent = '正在语音...';
         } catch (err) {
             console.error('获取麦克风权限失败:', err);
-            statusElement.textContent = '无法访问麦克风';
+            statusElement.textContent = '无法访问麦克风，但您仍可使用文字输入功能';
+            // 麦克风失败时，恢复按钮状态，允许用户继续使用其他功能
+            micButton.disabled = false;
+            muteButton.disabled = true;
+            screenButton.disabled = true;
+            stopButton.disabled = true;
+            resetSessionButton.disabled = false;
         }
     }
 
@@ -397,7 +409,7 @@ function init_app(){
                 screenButton.disabled = true;
                 stopButton.disabled = true;
                 resetSessionButton.disabled = false;
-                statusElement.textContent = '麦克风启动失败';
+                statusElement.textContent = '麦克风启动失败，但您仍可使用文字输入功能';
             }
         }, 2500);
     });
@@ -420,6 +432,7 @@ function init_app(){
         }
         stopRecording();
         clearAudioQueue();
+        textSessionActive = false; // 重置文本会话状态
         micButton.disabled = false;
         muteButton.disabled = true;
         screenButton.disabled = true;
@@ -435,32 +448,51 @@ function init_app(){
         const text = userInput.value.trim();
         if (!text) return;
 
+        // 检查WebSocket连接状态
+        if (!socket || socket.readyState !== WebSocket.OPEN) {
+            statusElement.textContent = 'WebSocket连接未建立，请稍后重试';
+            return;
+        }
+
         // 清空输入框
         userInput.value = '';
 
         // 显示用户消息
         appendMessage(text, 'user');
 
-        // 如果没有启动会话，先启动
-        if (!isRecording) {
-            // 需要先建立会话
-            if (socket.readyState === WebSocket.OPEN) {
+        // 文本输入始终可用，不依赖麦克风状态
+        // 如果文本会话未启动，先启动文本会话
+        if (!textSessionActive) {
+            try {
+                // 显示Live2D（如果还没显示）
+                showLive2d();
+                
                 socket.send(JSON.stringify({
                     action: 'start_session',
                     input_type: 'text'
                 }));
+                textSessionActive = true;
+                
+                // 短暂等待会话启动
+                await new Promise(resolve => setTimeout(resolve, 500));
+            } catch (error) {
+                console.error('启动文本会话失败:', error);
+                statusElement.textContent = '启动会话失败';
+                return;
             }
-            // 等待会话启动完成
-            await new Promise(resolve => setTimeout(resolve, 500));
         }
 
         // 发送文本消息到后端
-        if (socket.readyState === WebSocket.OPEN) {
+        try {
             socket.send(JSON.stringify({
                 action: 'stream_data',
                 input_type: 'text',
                 data: text
             }));
+            statusElement.textContent = '正在对话...';
+        } catch (error) {
+            console.error('发送文本消息失败:', error);
+            statusElement.textContent = '发送消息失败';
         }
     }
 

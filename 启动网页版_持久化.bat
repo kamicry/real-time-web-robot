@@ -31,20 +31,19 @@ echo ============================================================
 echo.
 echo 启动内存服务器...
 
-REM 启动Memory Server（后台进程，不显示窗口）
-start "" /B "%PYTHON%" "%SCRIPT_DIR%memory_server.py" --enable-shutdown
+REM 启动Memory Server（在新窗口中启动，最小化显示）
+start "Memory Server" /MIN "%PYTHON%" "%SCRIPT_DIR%memory_server.py" --enable-shutdown
 
 REM 等待Memory Server启动完成
-timeout /t 3 > nul
+timeout /t 5 > nul
 
 echo 启动主服务器...
 
-REM 启动Main Server（不自动打开浏览器）
-REM /B 参数表示在后台启动，不创建新窗口
-start "" /B "%PYTHON%" "%SCRIPT_DIR%main_server.py"
+REM 启动Main Server（在新窗口中启动，最小化显示）
+start "Main Server" /MIN "%PYTHON%" "%SCRIPT_DIR%main_server.py"
 
-REM 等待主服务器启动完成
-timeout /t 2 > nul
+REM 等待主服务器启动完成（增加等待时间确保服务完全启动）
+timeout /t 5 > nul
 
 echo.
 echo ============================================================
@@ -69,8 +68,12 @@ echo.
 echo 正在清理资源并关闭所有服务...
 echo.
 
-REM 终止所有相关的Python进程
-taskkill /F /IM python.exe /FI "WINDOWTITLE eq*Project Lanlan*" 2>nul
+REM 终止Memory Server和Main Server窗口中的进程
+taskkill /F /FI "WINDOWTITLE eq Memory Server*" 2>nul
+taskkill /F /FI "WINDOWTITLE eq Main Server*" 2>nul
+
+REM 额外保险：终止所有相关的Python进程（如果上面没有终止成功）
+taskkill /F /IM python.exe /FI "WINDOWTITLE eq*Server*" 2>nul
 
 echo 清理完成。应用程序已停止。
 echo.
