@@ -195,6 +195,14 @@ class OmniRealtimeClient:
                 raise ValueError(f"Model does not support video streaming: {self.model}")
             await self.send_event(append_event)
 
+    async def stream_text(self, text: str) -> None:
+        """Stream text input to the API."""
+        append_event = {
+            "type": "input_text_buffer.append",
+            "text": text
+        }
+        await self.send_event(append_event)
+
     async def create_response(self, instructions: str, skipped: bool = False) -> None:
         """Request a response from the API. Needed when using manual mode."""
         if skipped == True:

@@ -1,10 +1,20 @@
 @echo off
 chcp 65001  > nul  & rem 设置代码页为UTF-8
-"%~dp0env\python.exe" "%~dp0main_server.py" --open-browser --page api_key
 
-REM ------------ 启动两个服务（附着在同一控制台） ----------
+REM ------------ 启动两个服务（后台运行，保持窗口打开） ----------
 echo.
 echo 正在启动服务器...
-start "Memory Server" /B "%~dp0env\python.exe" "%~dp0memory_server.py" --enable-shutdown
-timeout /t 10 > nul
-"%~dp0env\python.exe" "%~dp0main_server.py" --open-browser --page index
+
+REM 启动Memory Server（后台进程）
+start "" /B "%~dp0env\python.exe" "%~dp0memory_server.py" --enable-shutdown
+timeout /t 3 > nul
+
+REM 启动Main Server（不自动打开浏览器）
+start "" /B "%~dp0env\python.exe" "%~dp0main_server.py"
+
+echo.
+echo 服务已启动，窗口将保持打开状态。
+echo 请手动打开浏览器访问: http://127.0.0.1:8000
+echo 关闭此窗口以停止所有服务。
+echo.
+pause

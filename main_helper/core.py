@@ -568,7 +568,29 @@ class LLMSessionManager:
         data = message.get("data")
         input_type = message.get("input_type")
         try:
-            if input_type == 'audio':
+            if input_type == 'text':
+                # 处理文本输入
+                try:
+                    text = data.strip() if isinstance(data, str) else str(data)
+                    if text:
+                        # 规范化文本
+                        normalized_text = self.normalize_text(text)
+                        if normalized_text:
+                            # 发送文本到Core API
+                            await self.session.stream_text(normalized_text)
+                            # 记录用户输入到缓存
+                            if hasattr(self, 'is_preparing_new_session') and self.is_preparing_new_session:
+                                if not hasattr(self, 'message_cache_for_new_session'):
+                                    self.message_cache_for_new_session = []
+                                if len(self.message_cache_for_new_session) == 0 or self.message_cache_for_new_session[-1]['role'] == self.lanlan_name:
+                                    self.message_cache_for_new_session.append({"role": self.master_name, "text": normalized_text})
+                                elif self.message_cache_for_new_session[-1]['role'] == self.master_name:
+                                    self.message_cache_for_new_session[-1]['text'] += normalized_text
+                except Exception as e:
+                    logger.error(f"💥 Stream: Error processing text data: {e}")
+                    traceback.print_exc()
+                    return
+            elif input_type == 'audio':
                 try:
                     if isinstance(data, list):
                         audio_bytes = struct.pack(f'<{len(data)}h', *data)
