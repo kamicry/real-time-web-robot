@@ -131,6 +131,10 @@ class LLMSessionManager:
 
     async def handle_response_complete(self):
         """Qwen完成回调：用于处理Core API的响应完成事件，包含TTS和热切换逻辑"""
+        # Clear text response pending flag when response is complete
+        async with self.text_response_lock:
+            self.text_response_pending = False
+        
         if self.use_tts:
             print("Response complete")
             self.tts_request_queue.put((None, None))
@@ -576,16 +580,38 @@ class LLMSessionManager:
                         # 规范化文本
                         normalized_text = self.normalize_text(text)
                         if normalized_text:
-                            # 发送文本到Core API
-                            await self.session.stream_text(normalized_text)
-                            # 记录用户输入到缓存
-                            if hasattr(self, 'is_preparing_new_session') and self.is_preparing_new_session:
-                                if not hasattr(self, 'message_cache_for_new_session'):
-                                    self.message_cache_for_new_session = []
-                                if len(self.message_cache_for_new_session) == 0 or self.message_cache_for_new_session[-1]['role'] == self.lanlan_name:
-                                    self.message_cache_for_new_session.append({"role": self.master_name, "text": normalized_text})
-                                elif self.message_cache_for_new_session[-1]['role'] == self.master_name:
-                                    self.message_cache_for_new_session[-1]['text'] += normalized_text
+                            # Guard against overlapping text requests
+                            async with self.text_response_lock:
+                                if self.text_response_pending:
+                                    await self.send_status("请等待上一条消息的回复")
+                                    return
+                                self.text_response_pending = True
+                            
+                            try:
+                                # 发送文本到Core API
+                                await self.session.stream_text(normalized_text)
+                                # 立即提交文本缓冲区
+                                await self.session.commit_text_buffer()
+                                # 发送文本到WebSocket前端进行通知
+                                await self.send_status("正在处理文本输入...")
+                                # 请求响应
+                                await self.session.create_response()
+                                # 记录用户输入到缓存
+                                if hasattr(self, 'is_preparing_new_session') and self.is_preparing_new_session:
+                                    if not hasattr(self, 'message_cache_for_new_session'):
+                                        self.message_cache_for_new_session = []
+                                    if len(self.message_cache_for_new_session) == 0 or self.message_cache_for_new_session[-1]['role'] == self.lanlan_name:
+                                        self.message_cache_for_new_session.append({"role": self.master_name, "text": normalized_text})
+                                    elif self.message_cache_for_new_session[-1]['role'] == self.master_name:
+                                        self.message_cache_for_new_session[-1]['text'] += normalized_text
+                            except Exception as e:
+                                async with self.text_response_lock:
+                                    self.text_response_pending = False
+                                error_message = f"发送文本时出错: {e}"
+                                logger.error(f"💥 {error_message}")
+                                await self.send_status(error_message)
+                                traceback.print_exc()
+                                return
                 except Exception as e:
                     logger.error(f"💥 Stream: Error processing text data: {e}")
                     traceback.print_exc()
