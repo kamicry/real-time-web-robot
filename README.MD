@@ -47,11 +47,54 @@ Lanlan（兰兰）是一个新手友好、开箱即用的，具有听觉、视�
 1. **获取阿里云API**。在阿里云的百炼平台[官网](https://bailian.console.aliyun.com/)注册账号。新用户实名认证后可以获取大量免费额度，记得留意页面上的"新人福利"广告。注册完成后，请访问[控制台](https://bailian.console.aliyun.com/api-key?tab=model#/api-key)获取API Key。*一键包用户*可以通过设置页里的按钮设置API Key，*开发者*也可以直接修改`config/api.py`里的内容（首次配置请参考`config/api_template.py`）。
    > *注：本项目提供的都是官方链接，不含任何推广，本人无法从中获取任何收益。阿里的官网目前做的很烂，请忍耐orz*
 
-1. **体验网页版**。对于*一键包用户*，直接运行`启动网页版.bat`即可打开网页版。**请耐心等待网页刷新，并先根据提示配置API Key**。
+1. **体验网页版**。对于*一键包用户*，推荐运行`启动网页版_持久化.bat`（或最小化窗口版`启动网页版.bat`）来依次启动Memory Server与Main Server。脚本会在任务栏生成“Memory Server”和“Main Server”两个最小化窗口，这些窗口的输出即为实时日志，同时项目根目录会生成`lanlan_server_YYYYMMDD.log`文件方便排障。看到提示“服务已启动”后，**手动**打开浏览器访问`http://127.0.0.1:8000`并根据页面提示配置API Key。关闭浏览器只会向`/api/beacon/page_closed`发送通知，服务会继续运行；只有关闭启动脚本窗口或按`Ctrl+C`才会终止所有进程。
 
 1. **体验桌宠模式**。如果网页版可以正常使用，*一键包用户*可以考虑继续通过`启动App版.bat`开启桌宠模式。注意，**请不要同时使用网页版和App版。请确认exe文件没有被系统或杀毒软件隔离。** *使用结束后请在桌面右下角找到小八图标，右键退出，并手动关闭终端。*
 
 >  *对于**开发者**，请在克隆本项目后，(1)新建pyhon3.12环境。(2)执行`pip install -r requirements.txt`安装依赖。(3)复制`config/api_template.py`到`config/api.py`并进行必要配置。(4)执行`python memory_server.py`和`python main_server.py`。(5)通过main server中指定的端口（默认为`http://localhost:48911`）访问网页版。*
+
+## Windows 持久化运行器 & 文本输入端到端流程
+
+1. **启动服务**：双击运行`启动网页版_持久化.bat`（或使用`启动网页版.bat`），脚本会在后台依次启动Memory Server与Main Server，并提示何时可以打开浏览器。若脚本提示缺少环境，请先确认`env`目录存在。
+2. **查看日志**：任务栏中的“Memory Server”和“Main Server”最小化窗口会持续输出实时日志，同时项目根目录会生成`lanlan_server_YYYYMMDD.log`文件，可在AI没有回复时快速定位问题。
+3. **打开浏览器并连接**：在任意浏览器地址栏输入`http://127.0.0.1:8000`。连接成功后页面状态会显示“连接已建立，可以开始使用文字输入或语音输入”。
+4. **开始纯文字会话**：在左下角文本框输入首条消息并点击“发送”或按Enter，前端会自动发送`start_session`请求并让Live2D出现在画面中。
+5. **观察AI回复**：第二条消息开始只需发送`stream_data`载荷即可。回复会显示在聊天区，同时语音播报与情感驱动逻辑照常运行。
+6. **关闭浏览器但保持服务**：直接关闭浏览器标签页即可，页面的`beforeunload`钩子会向`/api/beacon/page_closed`上报，服务器保持运行，稍后重新打开浏览器即可继续。
+7. **干净停机**：当需要彻底退出时，关闭启动脚本窗口或在其中按`Ctrl+C`，脚本会调用`taskkill`终止“Memory Server”和“Main Server”进程。
+
+### WebSocket 文本载荷示例
+```json
+{
+  "action": "start_session",
+  "input_type": "text"
+}
+```
+```json
+{
+  "action": "stream_data",
+  "input_type": "text",
+  "data": "你好，今天状态如何？"
+}
+```
+后端会将这类载荷转换成OpenAI Realtime兼容的事件：
+```json
+{
+  "type": "input_text_buffer.append",
+  "text": "你好，今天状态如何？"
+}
+```
+
+### 日志与关闭语义
+- 任务栏最小化窗口就是实时日志，遇到异常无需重新运行脚本，直接最大化相应窗口即可查看堆栈。
+- `lanlan_server_YYYYMMDD.log`位于项目根目录，每日轮转，可在用户反馈“没有回复”时进行离线排查。
+- 关闭浏览器**不会**停止服务，只是写入一条“页面已关闭”日志；只有关闭启动脚本窗口或运行中的Python进程才会真正关闭服务。
+
+## 常见故障排查
+
+- **启动脚本提示“错误：找不到Python环境”**：确认项目根目录下存在`env\python.exe`，如不存在请重新解压一键包或在命令行运行`python -m venv env`后再执行`pip install -r requirements.txt`。
+- **状态栏提示“WebSocket连接未建立，请稍后重试”**：通常是服务尚未完全启动或端口被占用。确保启动脚本窗口仍在运行，等待5秒再次刷新，必要时检查`lanlan_server_YYYYMMDD.log`确认8000端口是否绑定成功。
+- **文字消息发送后没有AI回复**：首先点击“重置会话”按钮重新发送首条消息，确认页面已经执行`start_session`。如仍无响应，请检查API Key是否配置正确，并查看`lanlan_server_YYYYMMDD.log`或“Main Server”窗口是否有模型侧报错。
 
 # 进阶内容
 
