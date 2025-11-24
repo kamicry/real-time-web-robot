@@ -24,6 +24,7 @@ function init_app(){
     let globalAnalyser = null;
     let lipSyncActive = false;
     let textSessionActive = false; // 追踪文本会话是否已启动
+    let textRequestPending = false; // 追踪文本请求是否正在处理
 
     function isMobile() {
       return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
@@ -124,6 +125,11 @@ function init_app(){
                 } else if (response.type === 'system' && response.data === 'turn end') {
                     console.log('收到turn end事件，开始情感分析');
                     console.log('当前currentGeminiMessage:', currentGeminiMessage);
+                    // 清除文本请求待机状态
+                    textRequestPending = false;
+                    // Re-enable send button
+                    sendButton.disabled = false;
+                    statusElement.textContent = '回复已收到，可继续发送消息';
                     // 消息完成时进行情感分析
                     if (currentGeminiMessage) {
                         const fullText = currentGeminiMessage.textContent.replace(/^\[\d{2}:\d{2}:\d{2}\] 🎀 /, '');
@@ -145,6 +151,7 @@ function init_app(){
             console.log('WebSocket连接已关闭');
             statusElement.textContent = 'WebSocket连接已断开，3秒后尝试重新连接...';
             textSessionActive = false; // 重置会话状态
+            textRequestPending = false; // 重置文本请求状态
             // 尝试重新连接
             setTimeout(connectWebSocket, 3000);
         };
@@ -433,6 +440,8 @@ function init_app(){
         stopRecording();
         clearAudioQueue();
         textSessionActive = false; // 重置文本会话状态
+        textRequestPending = false; // 重置文本请求待机状态
+        sendButton.disabled = false; // 重新启用发送按钮
         micButton.disabled = false;
         muteButton.disabled = true;
         screenButton.disabled = true;
@@ -447,6 +456,12 @@ function init_app(){
     async function sendTextMessage() {
         const text = userInput.value.trim();
         if (!text) return;
+
+        // 检查是否有待机的文本请求
+        if (textRequestPending) {
+            statusElement.textContent = '请等待上一条消息的回复...';
+            return;
+        }
 
         // 检查WebSocket连接状态
         if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -484,15 +499,22 @@ function init_app(){
 
         // 发送文本消息到后端
         try {
+            // 标记请求待机
+            textRequestPending = true;
+            // 禁用发送按钮
+            sendButton.disabled = true;
+            
             socket.send(JSON.stringify({
                 action: 'stream_data',
                 input_type: 'text',
                 data: text
             }));
-            statusElement.textContent = '正在对话...';
+            statusElement.textContent = '正在处理您的消息...';
         } catch (error) {
             console.error('发送文本消息失败:', error);
             statusElement.textContent = '发送消息失败';
+            textRequestPending = false;
+            sendButton.disabled = false;
         }
     }
 

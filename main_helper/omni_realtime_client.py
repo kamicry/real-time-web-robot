@@ -203,16 +203,30 @@ class OmniRealtimeClient:
         }
         await self.send_event(append_event)
 
-    async def create_response(self, instructions: str, skipped: bool = False) -> None:
-        """Request a response from the API. Needed when using manual mode."""
+    async def commit_text_buffer(self) -> None:
+        """Commit the text input buffer to trigger processing."""
+        commit_event = {
+            "type": "input_text_buffer.commit"
+        }
+        await self.send_event(commit_event)
+
+    async def create_response(self, instructions: Optional[str] = None, skipped: bool = False) -> None:
+        """Request a response from the API. Needed when using manual mode.
+        
+        Args:
+            instructions: Optional system instructions. If None, uses session default.
+            skipped: Whether to skip processing for this response.
+        """
         if skipped == True:
             self._skip_until_next_response = True
+        response_config = {
+            "modalities": self._modalities
+        }
+        if instructions is not None:
+            response_config["instructions"] = instructions
         event = {
             "type": "response.create",
-            "response": {
-                "instructions": instructions,
-                "modalities": self._modalities
-            }
+            "response": response_config
         }
         logger.info(f"Creating response: {event}")
         await self.send_event(event)
